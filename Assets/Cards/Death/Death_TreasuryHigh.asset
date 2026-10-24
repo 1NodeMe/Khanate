@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3687904dd3c067d41a7ec9e5aa075ed0, type: 3}
+  m_Name: Death_TreasuryHigh
+  m_EditorClassIdentifier: Assembly-CSharp::CardData
+  isDeathCard: 1
+  characterName: Treasury
+  portrait: {fileID: 6737724048487822203, guid: 890e4d5fb57bda04cbf0f030dd646666, type: 3}
+  text: 'DEATH: TREASURY HIGH'
+  leftAnswer: A new reign begins
+  rightAnswer: A new reign begins
+  leftFaith: 0
+  rightFaith: 0
+  leftPeople: 0
+  rightPeople: 0
+  leftArmy: 0
+  rightArmy: 0
+  leftTreasury: 0
+  rightTreasury: 0
