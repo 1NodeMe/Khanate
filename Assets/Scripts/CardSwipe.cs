@@ -36,6 +36,12 @@ public class CardSwipe : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         float x = rt.anchoredPosition.x;
         rt.localRotation = Quaternion.Euler(0, 0, -x * rotationFactor);
 
+        if (gameManager != null)
+        {
+            if (Mathf.Abs(x) > 0.01f) gameManager.PreviewChoice(x > 0);
+            else gameManager.ClearChoicePreview();
+        }
+
         float t = Mathf.Clamp01(Mathf.Abs(x) / swipeThreshold);
         leftGroup.alpha = x < 0 ? t : 0;
         rightGroup.alpha = x > 0 ? t : 0;
@@ -62,6 +68,7 @@ public class CardSwipe : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
 
     public void ResetCard()
     {
+        if (gameManager != null) gameManager.ClearChoicePreview();
         rt.anchoredPosition = startPos;
         rt.localRotation = Quaternion.identity;
         leftGroup.alpha = 0;

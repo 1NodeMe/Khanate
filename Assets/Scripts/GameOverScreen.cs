@@ -67,6 +67,6 @@ public class GameOverScreen : MonoBehaviour
 
     void SetTitle(int year, string ruler)
     {
-        titleText.text = "Year " + year + " - " + ruler + "'s end of reign";
+        titleText.text = "Год " + year + " - " + ruler + " завершил своё правление";
     }
 }

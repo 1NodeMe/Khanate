@@ -40,7 +40,7 @@ public class AchievementManager : MonoBehaviour
         if (PlayerPrefs.GetInt(key, 0) == 1) return;
         PlayerPrefs.SetInt(key, 1);
         PlayerPrefs.Save();
-        Debug.Log("Achievement unlocked: " + id);
+        Debug.Log("Достижение получено: " + id);
     }
 
     public void RefreshList()

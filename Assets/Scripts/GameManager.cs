@@ -9,7 +9,7 @@ public class GameManager : MonoBehaviour
 {
     const string YearKey = "year";
 
-    enum CardMode { Normal, Death, Win }
+    enum CardMode { Normal, Death, Win, Rescue }
 
     [Header("Data: Assets/Resources/cards.json")]
     public string dataFileName = "cards";
@@ -30,12 +30,19 @@ public class GameManager : MonoBehaviour
     public Image treasuryFill;
     public Image faithFill;
 
+    [Header("Stat value texts")]
+    public TMP_Text peopleValueText;
+    public TMP_Text armyValueText;
+    public TMP_Text treasuryValueText;
+    public TMP_Text faithValueText;
+
     [Header("Card UI")]
     public CardSwipe cardSwipe;
     public Image portraitImage;
     public TMP_Text nameText, cardText;
     public TMP_Text leftAnswerText, rightAnswerText;
-    public Sprite defaultPortrait;      // used when Resources/Portraits/<name>.png is missing
+    public PortraitLibrary portraits;   // manual portrait list (NPC name -> sprite)
+    public Sprite defaultPortrait;      // used when no portrait is found for an NPC
     public TMP_Text outcomeText;        // optional: short consequence text after a swipe
 
     [Header("Death / win cards")]
@@ -44,9 +51,16 @@ public class GameManager : MonoBehaviour
     public Sprite winPortrait;          // optional: used for every win card without its own portrait
     public Color deathTint = new Color(0.55f, 0.2f, 0.2f, 1f);
     public Color winTint = new Color(0.9f, 0.78f, 0.35f, 1f);
+    public Color rescueTint = new Color(0.35f, 0.65f, 0.45f, 1f);
+    public Sprite threeBiyPortrait;
     public float deathRevealDelay = 0.7f;   // pause so the player sees the stat hit its limit
     public float endingLockSeconds = 0.8f;  // swipes are ignored for this long after an ending card appears
     public string endingAnswer = "Далее";
+
+    [Header("Three biy rescue")]
+    [Range(0f, 1f)] public float threeBiyChance = 0.25f;
+    public string threeBiyTitle = "Три бия";
+    public string threeBiyText = "Три бия заступились за тебя. Характеристика, приведшая к смерти, восстановлена до 50%.";
 
     [Header("Other systems")]
     public AchievementManager achievements;
@@ -71,6 +85,7 @@ public class GameManager : MonoBehaviour
     CardDef current, last;
     CardMode mode = CardMode.Normal;
     float inputLockUntil;
+    string rescueStat;
     Color normalTint = Color.white;
     Coroutine outcomeRoutine;
     Coroutine endingRoutine;
@@ -143,6 +158,7 @@ public class GameManager : MonoBehaviour
         cardsThisReign = 0;
         current = null;
         last = null;
+        rescueStat = null;
         mode = CardMode.Normal;
         inputLockUntil = 0f;
 
@@ -186,6 +202,7 @@ public class GameManager : MonoBehaviour
         if (cardBackground != null)
             cardBackground.color = newMode == CardMode.Death ? deathTint
                                  : newMode == CardMode.Win ? winTint
+                                 : newMode == CardMode.Rescue ? rescueTint
                                  : normalTint;
 
         cardSwipe.ResetCard();
@@ -216,6 +233,7 @@ public class GameManager : MonoBehaviour
 
         if (s == null && m == CardMode.Death) s = deathPortrait;
         if (s == null && m == CardMode.Win) s = winPortrait;
+        if (s == null && m == CardMode.Rescue) s = threeBiyPortrait;
         if (s == null) s = defaultPortrait;
 
         portraitImage.sprite = s;
@@ -227,7 +245,8 @@ public class GameManager : MonoBehaviour
         Sprite s;
         if (!portraitCache.TryGetValue(key, out s))
         {
-            s = Resources.Load<Sprite>("Portraits/" + key);
+            if (portraits != null) s = portraits.Get(key);
+            if (s == null) s = Resources.Load<Sprite>("Portraits/" + key);   // optional file-name fallback
             portraitCache[key] = s;
         }
         return s;
@@ -241,10 +260,18 @@ public class GameManager : MonoBehaviour
         if (data == null || current == null) return;
         if (endingRoutine != null) return;   // death reveal in progress
 
+        ClearChoicePreview();
+
         // Ignore swipes right after an ending card appears, so it can't be skipped by accident
         if (Time.unscaledTime < inputLockUntil)
         {
             cardSwipe.ResetCard();
+            return;
+        }
+
+        if (mode == CardMode.Rescue)
+        {
+            ApplyThreeBiyRescue();
             return;
         }
 
@@ -259,10 +286,10 @@ public class GameManager : MonoBehaviour
         ChoiceDef ch = right ? current.right : current.left;
         bool soft = !string.IsNullOrEmpty(current.softenIfFlag) && flags.Contains(current.softenIfFlag);
 
-        people = Mathf.Clamp(people + Soft(ch.people, soft), 0, 100);
-        army = Mathf.Clamp(army + Soft(ch.army, soft), 0, 100);
+        people   = Mathf.Clamp(people   + Soft(ch.people,   soft), 0, 100);
+        army     = Mathf.Clamp(army     + Soft(ch.army,     soft), 0, 100);
         treasury = Mathf.Clamp(treasury + Soft(ch.treasury, soft), 0, 100);
-        faith = Mathf.Clamp(faith + Soft(ch.faith, soft), 0, 100);
+        faith    = Mathf.Clamp(faith    + Soft(ch.faith,    soft), 0, 100);
 
         if (!string.IsNullOrEmpty(ch.setFlag)) flags.Add(ch.setFlag);
         if (!string.IsNullOrEmpty(ch.clearFlag)) flags.Remove(ch.clearFlag);
@@ -280,6 +307,7 @@ public class GameManager : MonoBehaviour
         EndingDef death = CheckDeath();
         if (death != null)
         {
+            if (TryShowThreeBiy(death)) return;
             if (achievements != null) achievements.OnDeath();
             endingRoutine = StartCoroutine(RevealEnding(MakeEndingCard(death.id, death.title, death.text), CardMode.Death));
             return;
@@ -378,14 +406,14 @@ public class GameManager : MonoBehaviour
     // =====================================================================
     EndingDef CheckDeath()
     {
-        if (people <= 0) return FindEnding("people", "low");
-        if (people >= 100) return FindEnding("people", "high");
-        if (army <= 0) return FindEnding("army", "low");
-        if (army >= 100) return FindEnding("army", "high");
-        if (treasury <= 0) return FindEnding("treasury", "low");
+        if (people <= 0)     return FindEnding("people", "low");
+        if (people >= 100)   return FindEnding("people", "high");
+        if (army <= 0)       return FindEnding("army", "low");
+        if (army >= 100)     return FindEnding("army", "high");
+        if (treasury <= 0)   return FindEnding("treasury", "low");
         if (treasury >= 100) return FindEnding("treasury", "high");
-        if (faith <= 0) return FindEnding("faith", "low");
-        if (faith >= 100) return FindEnding("faith", "high");
+        if (faith <= 0)      return FindEnding("faith", "low");
+        if (faith >= 100)    return FindEnding("faith", "high");
         return null;
     }
 
@@ -420,6 +448,36 @@ public class GameManager : MonoBehaviour
     CardDef MakeEndingCard(string id, string title, string text)
     {
         return new CardDef { id = id, character = title, text = text };
+    }
+
+    bool TryShowThreeBiy(EndingDef death)
+    {
+        if (threeBiyChance <= 0f || Random.value >= threeBiyChance) return false;
+
+        rescueStat = death.stat;
+        CardDef rescue = MakeEndingCard("three_biy", threeBiyTitle, threeBiyText);
+        endingRoutine = StartCoroutine(RevealEnding(rescue, CardMode.Rescue));
+        return true;
+    }
+
+    void ApplyThreeBiyRescue()
+    {
+        switch (rescueStat)
+        {
+            case "people": people = 50; break;
+            case "army": army = 50; break;
+            case "treasury": treasury = 50; break;
+            case "faith": faith = 50; break;
+            default:
+                Debug.LogWarning("GameManager: unknown stat for Three biy rescue: " + rescueStat);
+                return;
+        }
+
+        rescueStat = null;
+        mode = CardMode.Normal;
+        UpdateBars();
+        ShowOutcome(threeBiyTitle + ": спасение состоялось.");
+        ShowCard(PickFromPool());
     }
 
     // =====================================================================
@@ -460,6 +518,49 @@ public class GameManager : MonoBehaviour
         SetBar(armyBar, armyFill, army);
         SetBar(treasuryBar, treasuryFill, treasury);
         SetBar(faithBar, faithFill, faith);
+        SetStatText(peopleValueText, people.ToString());
+        SetStatText(armyValueText, army.ToString());
+        SetStatText(treasuryValueText, treasury.ToString());
+        SetStatText(faithValueText, faith.ToString());
+    }
+
+    public void PreviewChoice(bool right)
+    {
+        if (data == null || current == null || mode != CardMode.Normal) return;
+
+        ChoiceDef choice = right ? current.right : current.left;
+        bool soft = !string.IsNullOrEmpty(current.softenIfFlag) && flags.Contains(current.softenIfFlag);
+
+        int nextPeople = Mathf.Clamp(people + Soft(choice.people, soft), 0, 100);
+        int nextArmy = Mathf.Clamp(army + Soft(choice.army, soft), 0, 100);
+        int nextTreasury = Mathf.Clamp(treasury + Soft(choice.treasury, soft), 0, 100);
+        int nextFaith = Mathf.Clamp(faith + Soft(choice.faith, soft), 0, 100);
+
+        SetStatPreview(peopleValueText, people, nextPeople);
+        SetStatPreview(armyValueText, army, nextArmy);
+        SetStatPreview(treasuryValueText, treasury, nextTreasury);
+        SetStatPreview(faithValueText, faith, nextFaith);
+    }
+
+    public void ClearChoicePreview()
+    {
+        SetStatText(peopleValueText, people.ToString());
+        SetStatText(armyValueText, army.ToString());
+        SetStatText(treasuryValueText, treasury.ToString());
+        SetStatText(faithValueText, faith.ToString());
+    }
+
+    static void SetStatText(TMP_Text text, string value)
+    {
+        if (text != null) text.text = value;
+    }
+
+    static void SetStatPreview(TMP_Text text, int currentValue, int nextValue)
+    {
+        if (text == null) return;
+        text.text = currentValue == nextValue
+            ? currentValue.ToString()
+            : currentValue + " -> " + nextValue;
     }
 
     static void SetBar(Slider slider, Image fill, int value)

@@ -11,8 +11,8 @@ public class MenuController : MonoBehaviour
     public TMP_Text menuTitleText;
     public TMP_Text resetButtonText;
 
-    public string pausedTitle = "Game Paused";
-    public string menuTitle = "Menu";
+    public string pausedTitle = "Игра приостановлена";
+    public string menuTitle = "Меню";
 
     int resetStage;
     Coroutine resetTimer;
