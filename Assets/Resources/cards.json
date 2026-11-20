@@ -5,7 +5,7 @@
     "treasury": 50,
     "faith": 50
   },
-  "winAfterCards": 40,
+  "winAfterCards": 400,
   "flags": [
     {
       "id": "debt_bii",
@@ -244,7 +244,7 @@
       "left": {
         "label": "Устроим байгу и кокпар! Пусть покажут удаль и получат награды.",
         "people": 5,
-        "army": 10,
+        "army": 8,
         "treasury": -8,
         "next": "",
         "setFlag": "",
@@ -349,7 +349,7 @@
       "left": {
         "label": "Ударим первыми! Бейте по слабому отряду!",
         "people": -8,
-        "army": 8,
+        "army": 10,
         "treasury": -12,
         "next": "E2a",
         "setFlag": "",
@@ -588,41 +588,6 @@
       "weight": 1.0
     },
     {
-      "id": "K3.1",
-      "kind": "follow",
-      "character": "Староста кишлака",
-      "text": "Хан, без каналов наши поля сохнут! Нам нечем кормить детей!",
-      "left": {
-        "label": "Запрет остаётся. Степь важнее ваших огородов.",
-        "people": -10,
-        "army": 0,
-        "treasury": 0,
-        "next": "E3a",
-        "setFlag": "",
-        "clearFlag": "",
-        "outcome": "Бунт оседлых, аксакалы кишлаков отстранены",
-        "action": "Жёсткий запрет в пользу степи",
-        "faith": 6
-      },
-      "right": {
-        "label": "Выделю вам земли на окраине. Там и копайте.",
-        "people": 4,
-        "army": 0,
-        "treasury": -8,
-        "next": "E3b",
-        "setFlag": "",
-        "clearFlag": "",
-        "outcome": "Компромисс, затраты ресурсов",
-        "action": "Выделить земли на окраине",
-        "faith": 3
-      },
-      "requiresFlags": [],
-      "altText": "",
-      "altIfFlag": "",
-      "softenIfFlag": "",
-      "weight": 1.0
-    },
-    {
       "id": "K3.2",
       "kind": "follow",
       "character": "Глава рода",
@@ -685,41 +650,6 @@
         "outcome": "",
         "action": "Переговоры с кишлаками",
         "faith": -6
-      },
-      "requiresFlags": [],
-      "altText": "",
-      "altIfFlag": "",
-      "softenIfFlag": "",
-      "weight": 1.0
-    },
-    {
-      "id": "E3b",
-      "kind": "echo",
-      "character": "Жалобщик",
-      "text": "Хан, кочевник и земледелец дерутся у нового колодца! Нужен суд!",
-      "left": {
-        "label": "Созовите суд биев. Пусть решат по справедливости.",
-        "people": 0,
-        "army": 0,
-        "treasury": -4,
-        "next": "",
-        "setFlag": "bii_court",
-        "clearFlag": "",
-        "outcome": "",
-        "action": "Созвать суд биев",
-        "faith": 10
-      },
-      "right": {
-        "label": "Приведите обоих ко мне. Рассужу сам.",
-        "people": 4,
-        "army": 0,
-        "treasury": 0,
-        "next": "",
-        "setFlag": "",
-        "clearFlag": "",
-        "outcome": "",
-        "action": "Рассудить самому",
-        "faith": -5
       },
       "requiresFlags": [],
       "altText": "",
@@ -1326,30 +1256,65 @@
       "id": "K7.2",
       "kind": "follow",
       "character": "Посол Китая",
-      "text": "Мой император просит дань и свободный пропуск для купцов.",
+      "text": "Хан, начнём Шёлковый путь через наши земли? Купцы принесут богатство и новые связи.",
       "left": {
-        "label": "Дань будет отправлена.",
-        "people": -4,
+        "label": "Начнём Шёлковый путь.",
+        "people": 0,
         "army": 0,
-        "treasury": -8,
-        "next": "",
-        "setFlag": "",
+        "treasury": 0,
+        "next": "silk_start",
+        "setFlag": "silk_road_start",
         "clearFlag": "",
-        "outcome": "",
-        "action": "Отправить дань",
-        "faith": 4
+        "outcome": "Караваны готовятся к пути.",
+        "action": "Согласиться",
+        "faith": 0
       },
       "right": {
-        "label": "Вежливо откажем: степь не платит дань.",
+        "label": "Сейчас нам не нужен этот путь.",
         "people": 0,
-        "army": -4,
+        "army": 0,
+        "treasury": 0,
+        "next": "silk_refusal",
+        "setFlag": "",
+        "clearFlag": "",
+        "outcome": "Посол задумался над вашим ответом.",
+        "action": "Отказать",
+        "faith": 0
+      },
+      "requiresFlags": [],
+      "altText": "",
+      "altIfFlag": "",
+      "softenIfFlag": "",
+      "weight": 1.0
+    },
+    {
+      "id": "silk_refusal",
+      "kind": "follow",
+      "character": "Посол Китая",
+      "text": "Хан, подумайте над выгодой! Шёлковый путь принесёт богатство нашим землям.",
+      "left": {
+        "label": "Хорошо. Начнём Шёлковый путь.",
+        "people": 0,
+        "army": 0,
+        "treasury": 0,
+        "next": "silk_start",
+        "setFlag": "silk_road_start",
+        "clearFlag": "",
+        "outcome": "Караваны готовятся к пути.",
+        "action": "Согласиться",
+        "faith": 0
+      },
+      "right": {
+        "label": "Нет. Мы ещё не готовы.",
+        "people": 0,
+        "army": 0,
         "treasury": 0,
         "next": "",
         "setFlag": "",
         "clearFlag": "",
-        "outcome": "",
-        "action": "Вежливо отказать",
-        "faith": 6
+        "outcome": "Посол удалился, не получив ответа.",
+        "action": "Отказаться",
+        "faith": 0
       },
       "requiresFlags": [],
       "altText": "",
@@ -1578,7 +1543,7 @@
       "left": {
         "label": "Хорошо, устраивайте.",
         "people": 4,
-        "army": 8,
+        "army": 10,
         "treasury": -6,
         "next": "",
         "setFlag": "",
@@ -1609,7 +1574,7 @@
       "id": "M4",
       "kind": "small",
       "character": "Охотник с беркутом",
-      "text": "Хан, прими в дар моего лучшего орла.",
+      "text": "Хан, прими в дар моего лучшего беркута.",
       "left": {
         "label": "Принимаю с благодарностью.",
         "people": 0,
@@ -1623,7 +1588,7 @@
         "faith": 5
       },
       "right": {
-        "label": "Орёл лучше послужит батыру. Передайте ему.",
+        "label": "Беркут лучше послужит батыру. Передайте ему.",
         "people": 0,
         "army": 6,
         "treasury": 0,
@@ -1738,41 +1703,6 @@
         "outcome": "",
         "action": "Отказать",
         "faith": -6
-      },
-      "requiresFlags": [],
-      "altText": "",
-      "altIfFlag": "",
-      "softenIfFlag": "",
-      "weight": 0.6
-    },
-    {
-      "id": "M8",
-      "kind": "small",
-      "character": "Табунщик",
-      "text": "Хан, я нашёл необычного коня. Таких в степи не видали.",
-      "left": {
-        "label": "Оставьте коня в ханском табуне.",
-        "people": 0,
-        "army": 0,
-        "treasury": -4,
-        "next": "",
-        "setFlag": "",
-        "clearFlag": "",
-        "outcome": "",
-        "action": "Оставить себе",
-        "faith": 6
-      },
-      "right": {
-        "label": "Подарите коня батыру.",
-        "people": 0,
-        "army": 8,
-        "treasury": 0,
-        "next": "",
-        "setFlag": "",
-        "clearFlag": "",
-        "outcome": "",
-        "action": "Подарить батыру",
-        "faith": 0
       },
       "requiresFlags": [],
       "altText": "",
@@ -2065,41 +1995,6 @@
       "weight": 1.0
     },
     {
-      "id": "K10.1",
-      "kind": "follow",
-      "character": "Султан Младшего жуза",
-      "text": "Хан, мой народ требует особых прав!",
-      "left": {
-        "label": "Хорошо, вы получите особые права.",
-        "people": 4,
-        "army": -6,
-        "treasury": 0,
-        "next": "",
-        "setFlag": "",
-        "clearFlag": "",
-        "outcome": "Единство ценой уступок",
-        "action": "Дать особые права",
-        "faith": 4
-      },
-      "right": {
-        "label": "Нет. Закон один для всех жузов.",
-        "people": 0,
-        "army": -6,
-        "treasury": 0,
-        "next": "",
-        "setFlag": "",
-        "clearFlag": "",
-        "outcome": "Жуз отдаляется, власть хана слабеет",
-        "action": "Отказать открыто",
-        "faith": -8
-      },
-      "requiresFlags": [],
-      "altText": "",
-      "altIfFlag": "",
-      "softenIfFlag": "",
-      "weight": 1.0
-    },
-    {
       "id": "K10.2",
       "kind": "follow",
       "character": "Придворный",
@@ -2162,41 +2057,6 @@
         "outcome": "",
         "action": "Отправить на дальний рубеж",
         "faith": 4
-      },
-      "requiresFlags": [],
-      "altText": "",
-      "altIfFlag": "",
-      "softenIfFlag": "",
-      "weight": 1.0
-    },
-    {
-      "id": "K11.1",
-      "kind": "follow",
-      "character": "Старший командир",
-      "text": "Хан, мальчишка получил почести раньше нас, а мы воюем годами!",
-      "left": {
-        "label": "Поставлю его во главе отряда.",
-        "people": 0,
-        "army": 8,
-        "treasury": 0,
-        "next": "",
-        "setFlag": "",
-        "clearFlag": "",
-        "outcome": "Сильный отряд, раскол среди командиров",
-        "action": "Поставить его во главе отряда",
-        "faith": -6
-      },
-      "right": {
-        "label": "Награды будут поровну.",
-        "people": 0,
-        "army": -2,
-        "treasury": -4,
-        "next": "",
-        "setFlag": "",
-        "clearFlag": "",
-        "outcome": "Мир в командовании, пыл молодого остыл",
-        "action": "Держать награды поровну",
-        "faith": 6
       },
       "requiresFlags": [],
       "altText": "",

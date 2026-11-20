@@ -9,7 +9,7 @@ public class GameManager : MonoBehaviour
 {
     const string YearKey = "year";
 
-    enum CardMode { Normal, Death, Win, Rescue }
+    enum CardMode { Normal, Death, Win, Rescue, Event }
 
     [Header("Data: Assets/Resources/cards.json")]
     public string dataFileName = "cards";
@@ -62,6 +62,20 @@ public class GameManager : MonoBehaviour
     public string threeBiyTitle = "Три бия";
     public string threeBiyText = "Три бия заступились за тебя. Характеристика, приведшая к смерти, восстановлена до 50%.";
 
+    [Header("Special events")]
+    [Range(0f, 1f)] public float altynAdamChance = 0.2f;
+    public Sprite altynAdamPortrait;
+    public Color eventTint = new Color(0.35f, 0.55f, 0.75f, 1f);
+    [FormerlySerializedAs("armyLockIcon")]
+    public Image armyIcon;
+    public Image armyLockOverlay;
+    public Sprite armyLockSprite;
+    public string altynAdamTitle = "Обнаружили Алтын Адам";
+    public string altynAdamText = "В степи обнаружили Алтын Адам. Вера народа укрепилась.";
+    public int silkRoadDurationTurns = 10;
+    public float silkRoadIncomeInterval = 5f;
+    public int silkRoadIncome = 1;
+
     [Header("Other systems")]
     public AchievementManager achievements;
     public GameOverScreen gameOver;
@@ -89,6 +103,12 @@ public class GameManager : MonoBehaviour
     Color normalTint = Color.white;
     Coroutine outcomeRoutine;
     Coroutine endingRoutine;
+    Coroutine silkRoadIncomeRoutine;
+    string specialEvent;
+    int silkRoadTurnsRemaining;
+    int armyLockTurnsRemaining;
+    bool silkRoadActive;
+    bool altynAdamShown;
 
     // =====================================================================
     // Startup
@@ -99,6 +119,7 @@ public class GameManager : MonoBehaviour
         if (data == null) return;
 
         if (cardBackground != null) normalTint = cardBackground.color;
+        EnsureArmyLockIcon();
 
         year = PlayerPrefs.GetInt(YearKey, startYear);
         reignStartYear = year;
@@ -138,6 +159,11 @@ public class GameManager : MonoBehaviour
         // A card that nobody links to is a "pool" card: it comes up on its own
         foreach (var c in data.cards)
             if (!linked.Contains(c.id)) pool.Add(c);
+
+        byId["silk_start"] = MakeSpecialCard("silk_start", "Шёлковый путь",
+            "Шёлковый путь открыт. Караваны двинулись через наши земли.");
+        byId["silk_end"] = MakeSpecialCard("silk_end", "Шёлковый путь",
+            "Десять лет Шёлкового пути завершились. Казна получила богатство, а караваны отправились дальше.");
     }
 
     void ResetReignState()
@@ -145,6 +171,7 @@ public class GameManager : MonoBehaviour
         // Cancel a death reveal that may still be running and bring the card back
         if (endingRoutine != null) StopCoroutine(endingRoutine);
         endingRoutine = null;
+        StopSilkRoad();
         if (cardSwipe != null && !cardSwipe.gameObject.activeSelf) cardSwipe.gameObject.SetActive(true);
 
         var s = data.startStats;
@@ -159,10 +186,16 @@ public class GameManager : MonoBehaviour
         current = null;
         last = null;
         rescueStat = null;
+        specialEvent = null;
+        silkRoadTurnsRemaining = 0;
+        armyLockTurnsRemaining = 0;
+        silkRoadActive = false;
+        altynAdamShown = false;
         mode = CardMode.Normal;
         inputLockUntil = 0f;
 
         UpdateBars();
+        UpdateArmyLockIcon();
         HideOutcome();
     }
 
@@ -203,6 +236,7 @@ public class GameManager : MonoBehaviour
             cardBackground.color = newMode == CardMode.Death ? deathTint
                                  : newMode == CardMode.Win ? winTint
                                  : newMode == CardMode.Rescue ? rescueTint
+                                 : newMode == CardMode.Event ? eventTint
                                  : normalTint;
 
         cardSwipe.ResetCard();
@@ -234,6 +268,7 @@ public class GameManager : MonoBehaviour
         if (s == null && m == CardMode.Death) s = deathPortrait;
         if (s == null && m == CardMode.Win) s = winPortrait;
         if (s == null && m == CardMode.Rescue) s = threeBiyPortrait;
+        if (s == null && m == CardMode.Event && specialEvent == "altyn_adam") s = altynAdamPortrait;
         if (s == null) s = defaultPortrait;
 
         portraitImage.sprite = s;
@@ -275,6 +310,12 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        if (mode == CardMode.Event)
+        {
+            ResolveSpecialEvent();
+            return;
+        }
+
         // Swiping an ending card (death or win) opens the game over screen
         if (mode != CardMode.Normal)
         {
@@ -286,10 +327,24 @@ public class GameManager : MonoBehaviour
         ChoiceDef ch = right ? current.right : current.left;
         bool soft = !string.IsNullOrEmpty(current.softenIfFlag) && flags.Contains(current.softenIfFlag);
 
+        bool startedSilkRoad = ch.setFlag == "silk_road_start";
+        if (startedSilkRoad) StartSilkRoad();
+
+        int armyChange = Soft(ch.army, soft);
+        if (armyLockTurnsRemaining > 0 && armyChange < 0) armyChange = 0;
+        bool activatedKokpar = current.id == "M3" && !right;
+
         people   = Mathf.Clamp(people   + Soft(ch.people,   soft), 0, 100);
-        army     = Mathf.Clamp(army     + Soft(ch.army,     soft), 0, 100);
+        army     = Mathf.Clamp(army     + armyChange, 0, 100);
         treasury = Mathf.Clamp(treasury + Soft(ch.treasury, soft), 0, 100);
         faith    = Mathf.Clamp(faith    + Soft(ch.faith,    soft), 0, 100);
+
+        if (activatedKokpar)
+        {
+            armyLockTurnsRemaining = Random.Range(5, 11);
+            ShowOutcome("Кокпар: армия увеличена на 10. Снижение заблокировано на " + armyLockTurnsRemaining + " ходов.");
+            UpdateArmyLockIcon();
+        }
 
         if (!string.IsNullOrEmpty(ch.setFlag)) flags.Add(ch.setFlag);
         if (!string.IsNullOrEmpty(ch.clearFlag)) flags.Remove(ch.clearFlag);
@@ -303,15 +358,26 @@ public class GameManager : MonoBehaviour
         UpdateYearUI();
         ShowOutcome(ch.outcome);
 
+        if (armyLockTurnsRemaining > 0)
+        {
+            armyLockTurnsRemaining--;
+            UpdateArmyLockIcon();
+        }
+
         // 1) a stat hit 0 or 100: death card
         EndingDef death = CheckDeath();
         if (death != null)
         {
+            StopSilkRoad();
             if (TryShowThreeBiy(death)) return;
             if (achievements != null) achievements.OnDeath();
             endingRoutine = StartCoroutine(RevealEnding(MakeEndingCard(death.id, death.title, death.text), CardMode.Death));
             return;
         }
+
+        if (!startedSilkRoad && AdvanceSilkRoad()) return;
+
+        if (TryTriggerRandomEvent()) return;
 
         // 2) survived long enough: win card
         if (cardsThisReign >= data.winAfterCards)
@@ -329,7 +395,11 @@ public class GameManager : MonoBehaviour
         if (!string.IsNullOrEmpty(ch.next) && !byId.TryGetValue(ch.next, out next))
             Debug.LogWarning("GameManager: unknown next card '" + ch.next + "' (from " + current.id + ")");
 
-        ShowCard(next != null ? next : PickFromPool());
+        if (next != null && IsSilkRoadOnlyCard(next) && !silkRoadActive)
+            next = null;
+
+        bool silkStartCard = next != null && next.id == "silk_start";
+        ShowCard(next != null ? next : PickFromPool(), silkStartCard ? CardMode.Event : CardMode.Normal);
     }
 
     // The card disappears for a moment so the player can see the stat reach its limit,
@@ -344,6 +414,80 @@ public class GameManager : MonoBehaviour
         cardSwipe.gameObject.SetActive(true);
         endingRoutine = null;
         ShowCard(card, endingMode);
+    }
+
+    void StartSilkRoad()
+    {
+        StopSilkRoad();
+        silkRoadActive = true;
+        silkRoadTurnsRemaining = Mathf.Max(1, silkRoadDurationTurns);
+        silkRoadIncomeRoutine = StartCoroutine(SilkRoadIncome());
+    }
+
+    void StopSilkRoad()
+    {
+        if (silkRoadIncomeRoutine != null) StopCoroutine(silkRoadIncomeRoutine);
+        silkRoadIncomeRoutine = null;
+        silkRoadActive = false;
+        silkRoadTurnsRemaining = 0;
+    }
+
+    IEnumerator SilkRoadIncome()
+    {
+        while (silkRoadActive)
+        {
+            yield return new WaitForSecondsRealtime(Mathf.Max(0.1f, silkRoadIncomeInterval));
+            if (!silkRoadActive) yield break;
+
+            treasury = Mathf.Clamp(treasury + silkRoadIncome, 0, 100);
+            UpdateBars();
+        }
+    }
+
+    bool AdvanceSilkRoad()
+    {
+        if (!silkRoadActive) return false;
+
+        silkRoadTurnsRemaining--;
+        if (silkRoadTurnsRemaining > 0) return false;
+
+        StopSilkRoad();
+        ShowSpecialEvent("silk_end", "Шёлковый путь", 
+            "Десять лет Шёлкового пути завершились. Караваны отправились дальше, оставив богатство в казне.");
+        return true;
+    }
+
+    bool TryTriggerRandomEvent()
+    {
+        if (!altynAdamShown && faith < 20 && Random.value < altynAdamChance)
+        {
+            altynAdamShown = true;
+            ShowSpecialEvent("altyn_adam", altynAdamTitle, altynAdamText);
+            return true;
+        }
+
+        return false;
+    }
+
+    void ShowSpecialEvent(string eventId, string title, string text)
+    {
+        specialEvent = eventId;
+        ShowCard(MakeSpecialCard(eventId, title, text), CardMode.Event);
+    }
+
+    void ResolveSpecialEvent()
+    {
+        string eventId = current.id;
+
+        if (eventId == "altyn_adam")
+        {
+            faith = Mathf.Clamp(faith + 20, 0, 100);
+            UpdateBars();
+            ShowOutcome("Вера увеличена на 20.");
+        }
+        specialEvent = null;
+        mode = CardMode.Normal;
+        ShowCard(PickFromPool());
     }
 
     int Soft(int value, bool soft)
@@ -366,6 +510,7 @@ public class GameManager : MonoBehaviour
             {
                 if (c == last || seen.Contains(c.id)) continue;
                 if (!HasAll(c.requiresFlags)) continue;
+                if (IsSilkRoadOnlyCard(c) && !silkRoadActive) continue;
 
                 float w = Mathf.Max(0.01f, c.weight);
                 if (c.requiresFlags != null && c.requiresFlags.Length > 0) w *= flaggedCardBoost;
@@ -399,6 +544,25 @@ public class GameManager : MonoBehaviour
         foreach (var f in required)
             if (!string.IsNullOrEmpty(f) && !flags.Contains(f)) return false;
         return true;
+    }
+
+    bool IsSilkRoadOnlyCard(CardDef card)
+    {
+        if (card == null) return false;
+
+        switch (card.id)
+        {
+            case "K1.0":
+            case "K1.1":
+            case "K1.2":
+            case "E1a":
+            case "E1b":
+            case "E1c":
+            case "E1d":
+                return true;
+            default:
+                return false;
+        }
     }
 
     // =====================================================================
@@ -448,6 +612,19 @@ public class GameManager : MonoBehaviour
     CardDef MakeEndingCard(string id, string title, string text)
     {
         return new CardDef { id = id, character = title, text = text };
+    }
+
+    CardDef MakeSpecialCard(string id, string title, string text)
+    {
+        return new CardDef
+        {
+            id = id,
+            kind = "event",
+            character = title,
+            text = text,
+            left = new ChoiceDef { label = endingAnswer },
+            right = new ChoiceDef { label = endingAnswer }
+        };
     }
 
     bool TryShowThreeBiy(EndingDef death)
@@ -530,9 +707,11 @@ public class GameManager : MonoBehaviour
 
         ChoiceDef choice = right ? current.right : current.left;
         bool soft = !string.IsNullOrEmpty(current.softenIfFlag) && flags.Contains(current.softenIfFlag);
+        int armyChange = Soft(choice.army, soft);
+        if (armyLockTurnsRemaining > 0 && armyChange < 0) armyChange = 0;
 
         int nextPeople = Mathf.Clamp(people + Soft(choice.people, soft), 0, 100);
-        int nextArmy = Mathf.Clamp(army + Soft(choice.army, soft), 0, 100);
+        int nextArmy = Mathf.Clamp(army + armyChange, 0, 100);
         int nextTreasury = Mathf.Clamp(treasury + Soft(choice.treasury, soft), 0, 100);
         int nextFaith = Mathf.Clamp(faith + Soft(choice.faith, soft), 0, 100);
 
@@ -561,6 +740,50 @@ public class GameManager : MonoBehaviour
         text.text = currentValue == nextValue
             ? currentValue.ToString()
             : currentValue + " -> " + nextValue;
+    }
+
+    void UpdateArmyLockIcon()
+    {
+        bool locked = armyLockTurnsRemaining > 0;
+        if (armyIcon != null) armyIcon.enabled = !locked;
+        if (armyLockOverlay == null) return;
+        if (armyLockSprite != null) armyLockOverlay.sprite = armyLockSprite;
+        armyLockOverlay.enabled = locked;
+    }
+
+    void EnsureArmyLockIcon()
+    {
+        if (armyLockOverlay != null || armyLockSprite == null) return;
+
+        GameObject iconObject = new GameObject("ArmyLockIcon", typeof(RectTransform), typeof(Image));
+        Transform parent = armyIcon != null ? armyIcon.transform.parent : armyBar != null ? armyBar.transform : transform;
+        iconObject.transform.SetParent(parent, false);
+
+        RectTransform rect = iconObject.GetComponent<RectTransform>();
+        if (armyIcon != null)
+        {
+            RectTransform source = armyIcon.rectTransform;
+            rect.anchorMin = source.anchorMin;
+            rect.anchorMax = source.anchorMax;
+            rect.pivot = source.pivot;
+            rect.anchoredPosition = source.anchoredPosition;
+            rect.sizeDelta = source.sizeDelta;
+            rect.localRotation = source.localRotation;
+            rect.localScale = source.localScale;
+        }
+        else
+        {
+            rect.anchorMin = new Vector2(1f, 0.5f);
+            rect.anchorMax = new Vector2(1f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = new Vector2(14f, 0f);
+            rect.sizeDelta = new Vector2(24f, 24f);
+        }
+
+        armyLockOverlay = iconObject.GetComponent<Image>();
+        armyLockOverlay.sprite = armyLockSprite;
+        armyLockOverlay.preserveAspect = true;
+        armyLockOverlay.raycastTarget = false;
     }
 
     static void SetBar(Slider slider, Image fill, int value)

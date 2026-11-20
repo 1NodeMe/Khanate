@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Audio;
 using UnityEngine.EventSystems;
 
 public class CardSwipe : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
@@ -8,6 +9,12 @@ public class CardSwipe : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
     public float swipeThreshold = 250f;
     public float rotationFactor = 0.05f;
     public GameManager gameManager;
+
+    [Header("Swipe sounds")]
+    public AudioClip leftSwipeSound;
+    public AudioClip rightSwipeSound;
+    public AudioSource swipeAudioSource;
+    public AudioMixerGroup swipeSoundGroup;
 
     private RectTransform rt;
     private Vector2 startPos;
@@ -19,6 +26,30 @@ public class CardSwipe : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         startPos = rt.anchoredPosition;
         leftGroup = GetOrAddCanvasGroup(leftAnswer);
         rightGroup = GetOrAddCanvasGroup(rightAnswer);
+
+        if (swipeAudioSource == null) swipeAudioSource = GetComponent<AudioSource>();
+        if (swipeAudioSource == null) swipeAudioSource = gameObject.AddComponent<AudioSource>();
+        swipeAudioSource.playOnAwake = false;
+        swipeAudioSource.loop = false;
+        ConfigureSoundGroup();
+    }
+
+    void ConfigureSoundGroup()
+    {
+        if (swipeAudioSource == null || swipeSoundGroup != null)
+        {
+            if (swipeAudioSource != null && swipeSoundGroup != null)
+                swipeAudioSource.outputAudioMixerGroup = swipeSoundGroup;
+            return;
+        }
+
+        VolumeSettings settings = FindObjectOfType<VolumeSettings>();
+        if (settings == null || settings.mixer == null) return;
+
+        AudioMixerGroup[] groups = settings.mixer.FindMatchingGroups("Sound");
+        if (groups.Length == 0) groups = settings.mixer.FindMatchingGroups("SFX");
+        if (groups.Length > 0)
+            swipeAudioSource.outputAudioMixerGroup = groups[0];
     }
 
     CanvasGroup GetOrAddCanvasGroup(RectTransform target)
@@ -58,6 +89,7 @@ public class CardSwipe : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
                 ResetCard();
                 return;
             }
+            PlaySwipeSound(x > 0);
             gameManager.Choose(x > 0);
         }
         else
@@ -73,5 +105,12 @@ public class CardSwipe : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         rt.localRotation = Quaternion.identity;
         leftGroup.alpha = 0;
         rightGroup.alpha = 0;
+    }
+
+    void PlaySwipeSound(bool right)
+    {
+        AudioClip clip = right ? rightSwipeSound : leftSwipeSound;
+        if (clip != null && swipeAudioSource != null)
+            swipeAudioSource.PlayOneShot(clip);
     }
 }
